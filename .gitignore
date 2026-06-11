@@ -1,0 +1,13 @@
+/bak
+/output
+/test
+/vector_db
+/doc
+/logs
+.env
+/novel_agent/assets
+/novel_agent/evaluation/__pycache__
+/novel_agent/__pycache__
+/novel_agent/skills
+/scripts
+/reports
