@@ -31,7 +31,7 @@ class MySQLConfig(BaseModel):
     host: str = Field(default_factory=lambda: os.getenv("MYSQL_HOST", "localhost"))
     port: int = Field(default_factory=lambda: int(os.getenv("MYSQL_PORT", "3306")))
     user: str = Field(default_factory=lambda: os.getenv("MYSQL_USER", "root"))
-    password: str = Field(default_factory=lambda: os.getenv("MYSQL_PASSWORD", "123456"))
+    password: str = Field(default_factory=lambda: os.getenv("MYSQL_PASSWORD", ""))
     database: str = Field(default_factory=lambda: os.getenv("MYSQL_DATABASE", "agnes_novel"))
 
     @property
@@ -60,9 +60,24 @@ class GenerationConfig(BaseModel):
     # 质量阈值
     quality_threshold: float = 0.7         # 低于此分数触发参数调整
     quality_high_threshold: float = 0.8    # 高于此分数可增加创造性
+    rewrite_threshold: float = 0.70        # 低于此分数触发重写
 
     # 大纲更新频率
     outline_update_interval: int = 5       # 每N章更新一次大纲
+
+    # 记忆系统预算（字符数）
+    memory_budget_permanent: int = 3000
+    memory_budget_working: int = 4500
+    memory_budget_short_term: int = 6000
+    memory_budget_long_term: int = 4500
+
+    # 上下文截断限制
+    context_truncate_standard: int = 2000
+    context_truncate_large: int = 3000
+    context_truncate_small: int = 1000
+
+    # LLM 输出 token 限制
+    llm_output_tokens_standard: int = 3000
 
 
 class VectorDBConfig(BaseModel):

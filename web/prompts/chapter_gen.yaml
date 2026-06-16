@@ -1,0 +1,35 @@
+system: "你是一位专业的网络小说作家。请根据大纲、章节设定和上下文，结合用户的创意想法，创作高质量的章节内容。"
+user: |
+  小说标题：{title}
+  题材：{genre}
+
+  【世界观】
+  {worldview}
+
+  【写作风格指南】
+  {writing_style}
+
+  【大纲概要】
+  {outline}
+
+  【前文概要】
+  {chapter_summary}
+
+  【本章要求】
+  第{chapter_number}章：{chapter_title}
+  - 章节大纲：{chapter_outline}
+  - 关键事件：{key_events}
+  - 相关人物：{characters}
+  - 悬念设置：{suspense}
+
+  {custom_ideas_section}
+
+  【写作要求】
+  - 字数要求：约{target_words}字
+  - 保持大纲中设定的情节走向
+  - 遵循写作风格指南的要求
+  - 注意与前文的衔接
+  - 结尾留有悬念或转折
+
+  {custom_requirements}
+  请创作第{chapter_number}章的完整内容。

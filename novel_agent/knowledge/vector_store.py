@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
 from novel_agent.config import config
+from novel_agent.utils.exceptions import handle_error, VectorStoreError
 
 logger = logging.getLogger(__name__)
 
@@ -111,9 +112,10 @@ def _do_load_model():
             _global_model_failed = True
             _global_model_loading = False
     except Exception as e:
-        logger.warning(
-            f"Embedding 模型加载失败 ({type(e).__name__})，"
-            f"使用简单编码模式。错误: {e}"
+        handle_error(
+            e,
+            context="Embedding 模型加载失败，将使用简单编码模式",
+            raise_error=False,
         )
         with _global_model_lock:
             _global_model_failed = True
@@ -454,7 +456,11 @@ class VectorStore:
                 self._vectors_dirty = True
                 logger.info(f"已加载 {len(self._documents)} 条向量记录")
             except Exception as e:
-                logger.warning(f"加载向量索引失败: {e}")
+                handle_error(
+                    e,
+                    context="加载向量索引失败",
+                    raise_error=False,
+                )
                 self._documents = []
 
     @property

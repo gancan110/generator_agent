@@ -8,6 +8,10 @@ python-dotenv>=1.0.0          # 环境变量管理
 pydantic>=2.7.0               # 配置校验和数据模型
 numpy>=1.24.0                 # 数值计算
 
+# === Web ===
+flask>=3.0.0                  # Web框架
+flask-cors>=4.0.0             # CORS跨域支持
+
 # === 数据库 ===
 pymysql>=1.1.0                # MySQL 驱动
 sqlalchemy>=2.0.0             # ORM 框架

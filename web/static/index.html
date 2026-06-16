@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnes AI 小说创作向导</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  // 配置 marked 库
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true,  // 支持单换行
+      gfm: true,     // 支持 GitHub 风格 Markdown
+    });
+  }
+</script>
+</head>
+<body>
+<div id="app">
+  <!-- Step Progress Bar -->
+  <header id="topbar">
+    <div class="topbar-left">
+      <h1>Agnes AI 小说创作</h1>
+    </div>
+    <div class="step-progress" id="stepProgress"></div>
+  </header>
+
+  <div id="main">
+    <!-- LEFT: Step content -->
+    <div id="workspace">
+      <!-- Welcome -->
+      <div id="welcome" class="view active">
+        <div class="welcome-inner">
+          <h2>Agnes AI 小说自动生成</h2>
+          <p>12步向导式创作 · 智能分析 · 实时预览</p>
+          <button id="startWizardBtn" class="btn-primary btn-lg">开始创作</button>
+          <div class="existing-projects">
+            <h3>已有项目</h3>
+            <div id="projectListView"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wizard Step Views -->
+      <div id="stepView" class="view">
+        <!-- Step header -->
+        <div class="step-header">
+          <h2 id="stepTitle">步骤</h2>
+          <p id="stepDesc" class="step-desc"></p>
+        </div>
+
+        <!-- Step body (dynamic by step) -->
+        <div class="step-body" id="stepBody"></div>
+
+        <!-- Step actions -->
+        <div class="step-actions" id="stepActions">
+          <button id="stepBackBtn" class="btn" style="display:none">上一步</button>
+          <div class="step-actions-right">
+            <button id="stepGenerateBtn" class="btn-primary" style="display:none">生成</button>
+            <button id="stepRegenBtn" class="btn" style="display:none">重新生成</button>
+            <button id="stepConfirmBtn" class="btn-primary" style="display:none">确认并继续</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generation view -->
+      <div id="genView" class="view">
+        <div class="step-header">
+          <h2>章节生成中</h2>
+          <p id="genStatus" class="step-desc">正在生成...</p>
+        </div>
+        <div class="gen-progress">
+          <div class="progress-bar"><div class="progress-fill" id="genProgressFill" style="width:0%"></div></div>
+          <div class="progress-text"><span id="genProgressLabel">准备中</span><span id="genProgressCount">0/0</span></div>
+        </div>
+        <div class="gen-layout">
+          <div class="gen-log">
+            <h4>日志</h4>
+            <div id="genLogViewer" class="log-viewer"></div>
+          </div>
+          <div class="gen-preview">
+            <h4>最新章节 <span id="genChapterBadge" class="chapter-badge"></span></h4>
+            <div id="genChapterPreview" class="chapter-preview"><div class="placeholder">等待章节生成...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reader view -->
+      <div id="readerView" class="view">
+        <div class="reader-bar">
+          <span id="readerProjectName" class="reader-proj-name"></span>
+          <span id="readerChapterNum"></span>
+          <div class="reader-nav">
+            <button id="readerPrevBtn" class="btn btn-sm">&#9664;</button>
+            <button id="readerNextBtn" class="btn btn-sm">&#9654;</button>
+          </div>
+          <button id="readerBackBtn" class="btn btn-sm">← 返回</button>
+        </div>
+        <div class="reader-body">
+          <div class="chapter-title" id="readerChapterTitle"></div>
+          <div class="chapter-content" id="readerChapterContent"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Log panel -->
+    <aside id="logPanel">
+      <div class="log-panel-header">
+        <h4>系统日志</h4>
+        <button id="clearLogBtn" class="btn btn-xs">清空</button>
+      </div>
+      <div id="systemLog" class="log-viewer"></div>
+    </aside>
+
+    <!-- Outline Sidebar (shown during chapter_gen) -->
+    <aside id="outlineSidebar" class="outline-sidebar" style="display:none">
+      <div class="outline-sidebar-header">
+        <h4>📋 大纲参考</h4>
+        <button id="closeOutlineSidebar" class="btn btn-xs">✕</button>
+      </div>
+      <div id="outlineSidebarContent" class="outline-sidebar-body"></div>
+    </aside>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

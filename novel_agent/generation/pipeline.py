@@ -15,7 +15,8 @@ from novel_agent.database.mysql_client import db_client
 from novel_agent.database.models import Project, Chapter, PlotPoint
 from novel_agent.knowledge.collector import KnowledgeCollector
 from novel_agent.knowledge.knowledge_base import KnowledgeBase
-from novel_agent.knowledge.vector_store import VectorStore, preload_embedding_model
+from novel_agent.knowledge.vector_store import preload_embedding_model
+from novel_agent.knowledge.faiss_vector_store import create_vector_store
 from novel_agent.outline.generator import OutlineGenerator
 from novel_agent.outline.updater import OutlineUpdater
 from novel_agent.generation.chapter_generator import ChapterGenerator
@@ -28,6 +29,13 @@ from novel_agent.evaluation.quality import QualityEvaluator
 from novel_agent.evaluation.optimizer import ParameterOptimizer
 from novel_agent.skills import SkillRegistry, SkillContext, SkillGenerator
 from novel_agent.memory import MemoryManager
+from novel_agent.utils.exceptions import (
+    handle_error,
+    PipelineError,
+    ChapterGenerationError,
+    KnowledgeError,
+    VectorStoreError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +82,7 @@ class GenerationPipeline:
         # 子系统（延迟初始化）
         self._project: Optional[Project] = None
         self._knowledge_base: Optional[KnowledgeBase] = None
-        self._vector_store: Optional[VectorStore] = None
+        self._vector_store = None  # 使用FAISS向量存储
         self._outline_generator: Optional[OutlineGenerator] = None
         self._outline_updater: Optional[OutlineUpdater] = None
         self._chapter_generator: Optional[ChapterGenerator] = None
@@ -179,7 +187,7 @@ class GenerationPipeline:
 
         # 初始化子系统（传递 SkillContext）
         self._knowledge_base = KnowledgeBase(project_id)
-        self._vector_store = VectorStore(project_id)
+        self._vector_store = create_vector_store(project_id, use_faiss=True)
         self._outline_generator = OutlineGenerator(project_id, self.genre, self.theme, self.skill_context)
         self._outline_updater = OutlineUpdater(project_id)
         self._chapter_generator = ChapterGenerator(project_id, self.skill_context)
@@ -222,7 +230,11 @@ class GenerationPipeline:
             logger.info(f"=== 小说生成完成: {self.title} ===")
 
         except Exception as e:
-            logger.error(f"生成流水线异常: {e}", exc_info=True)
+            error = handle_error(
+                e,
+                context=f"生成流水线异常: {self.title}",
+                raise_error=True,
+            )
             if self._project:
                 self._project.status = "error"
                 db_client.update(self._project)
@@ -300,16 +312,17 @@ class GenerationPipeline:
         logger.info(f"当前进度: {project.current_chapter}/{project.target_chapters}")
 
         # ---- 2. 确定续写起始章节 ----
-        existing_chapters = db_client.get_all(Chapter, project_id=project_id)
-        existing_chapters.sort(key=lambda c: c.chapter_number)
+        # 获取最后一个章节号
+        last_chapter = 0
+        existing_chapters = db_client.get_chapters_by_project(project_id, limit=1)
+        if existing_chapters:
+            last_chapter = existing_chapters[0].chapter_number
 
-        if not existing_chapters:
+        if last_chapter == 0:
             raise RuntimeError(
                 f"项目 ID={project_id} 没有已生成的章节，"
                 f"请使用 start 命令从头开始生成。"
             )
-
-        last_chapter = existing_chapters[-1].chapter_number
 
         if from_chapter > 0:
             # 用户指定了起始章节
@@ -351,7 +364,7 @@ class GenerationPipeline:
 
         # ---- 4. 初始化子系统（传递 SkillContext）----
         self._knowledge_base = KnowledgeBase(project_id)
-        self._vector_store = VectorStore(project_id)
+        self._vector_store = create_vector_store(project_id, use_faiss=True)
         self._outline_generator = OutlineGenerator(project_id, self.genre, self.theme, self.skill_context)
         self._outline_updater = OutlineUpdater(project_id)
         self._chapter_generator = ChapterGenerator(project_id, self.skill_context)
@@ -620,14 +633,12 @@ class GenerationPipeline:
             new_suspense_titles = suspense_result.get("new_suspense_titles", []) if suspense_result else []
             
             # 更新 Chapter DB 记录
-            chapter_records = db_client.get_all(Chapter, project_id=self.project_id)
-            for cr in chapter_records:
-                if cr.chapter_number == self._current_chapter:
-                    cr.new_items = new_items_data if new_items_data else None
-                    cr.new_suspense = new_suspense_titles if new_suspense_titles else cr.new_suspense
-                    cr.resolved_suspense = resolved_suspense_ids if resolved_suspense_ids else None
-                    db_client.update(cr)
-                    break
+            chapter_record = db_client.get_chapter_by_number(self.project_id, self._current_chapter)
+            if chapter_record:
+                chapter_record.new_items = new_items_data if new_items_data else None
+                chapter_record.new_suspense = new_suspense_titles if new_suspense_titles else chapter_record.new_suspense
+                chapter_record.resolved_suspense = resolved_suspense_ids if resolved_suspense_ids else None
+                db_client.update(chapter_record)
             
             if new_items_data:
                 logger.info(f"第 {self._current_chapter} 章新物品: {[i.get('name','') for i in new_items_data]}")
@@ -659,7 +670,11 @@ class GenerationPipeline:
                             f"{'; '.join(issues[:3])}"
                         )
                 except Exception as e:
-                    logger.warning(f"世界设定一致性检查失败: {e}")
+                    handle_error(
+                        e,
+                        context=f"第 {self._current_chapter} 章世界设定一致性检查失败",
+                        raise_error=False,
+                    )
 
             # ---- 低分重写机制 ----
             if self._quality_evaluator.needs_rewrite():
@@ -747,13 +762,11 @@ class GenerationPipeline:
                     }])
 
             # 存储质量评分到章节记录
-            chapter_records = db_client.get_all(Chapter, project_id=self.project_id)
-            for cr in chapter_records:
-                if cr.chapter_number == self._current_chapter:
-                    cr.quality_score = quality_score
-                    cr.quality_details = self._quality_evaluator.get_last_report()
-                    db_client.update(cr)
-                    break
+            chapter_record = db_client.get_chapter_by_number(self.project_id, self._current_chapter)
+            if chapter_record:
+                chapter_record.quality_score = quality_score
+                chapter_record.quality_details = self._quality_evaluator.get_last_report()
+                db_client.update(chapter_record)
 
             # 动态参数调整
             self._parameter_optimizer.adjust(quality_score)
@@ -852,11 +865,8 @@ class GenerationPipeline:
         """获取上一章摘要"""
         if self._current_chapter <= 1:
             return ""
-        records = db_client.get_all(Chapter, project_id=self.project_id)
-        for r in records:
-            if r.chapter_number == self._current_chapter - 1:
-                return r.summary or ""
-        return ""
+        record = db_client.get_chapter_by_number(self.project_id, self._current_chapter - 1)
+        return record.summary if record else ""
 
     def _get_previous_chapter_tail(self) -> str:
         """
@@ -866,23 +876,26 @@ class GenerationPipeline:
         """
         if self._current_chapter <= 1:
             return ""
-        records = db_client.get_all(Chapter, project_id=self.project_id)
-        for r in records:
-            if r.chapter_number == self._current_chapter - 1:
-                content = r.content or ""
-                if len(content) > 500:
-                    return content[-500:]
-                return content
+        record = db_client.get_chapter_by_number(self.project_id, self._current_chapter - 1)
+        if record and record.content:
+            content = record.content
+            if len(content) > 500:
+                return content[-500:]
+            return content
         return ""
 
     def _get_recent_summaries(self, count: int) -> str:
         """获取最近 N 章的摘要"""
-        records = db_client.get_all(Chapter, project_id=self.project_id)
-        recent = sorted(records, key=lambda r: r.chapter_number, reverse=True)[:count]
-        recent.reverse()
+        # 使用精确查询获取最近的章节
+        recent_chapters = []
+        for i in range(max(1, self._current_chapter - count), self._current_chapter):
+            record = db_client.get_chapter_by_number(self.project_id, i)
+            if record:
+                recent_chapters.append(record)
+        recent_chapters.sort(key=lambda r: r.chapter_number)
         summaries = [
             f"第{r.chapter_number}章「{r.title}」: {(r.summary or '')[:200]}"
-            for r in recent
+            for r in recent_chapters
         ]
         return "\n".join(summaries)
 

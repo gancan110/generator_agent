@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, TYPE_CHECKING
 
 from novel_agent.utils.llm_client import llm_client
+from novel_agent.utils.exceptions import handle_error, KnowledgeError
 
 if TYPE_CHECKING:
     from novel_agent.skills.context import SkillContext
@@ -66,7 +67,11 @@ class KnowledgeCollector:
                 self.collected_knowledge[key] = result
                 logger.info(f"  完成: {key} ({len(result)} 字符)")
             except Exception as e:
-                logger.error(f"  采集失败: {key} - {e}")
+                handle_error(
+                    e,
+                    context=f"知识采集失败: {key}",
+                    raise_error=False,
+                )
                 self.collected_knowledge[key] = ""
 
         logger.info("知识采集完成")
